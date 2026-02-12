@@ -1,46 +1,85 @@
-#Sitema utilizado para processamento de pagamentos
+#Sistema utilizado para processamento de pagamentos
 
 #constantes necessárias
 LIMITE_DIARIO = 3
+LIMITE_VALOR_SAQUE = 500.00
 historico_movimentacoes = []
-limite_usuario = 0
+numero_saques_diarios = 0
 dinheiro_depositado = 3000.00
+valor_saque = 0
+lista_usuarios = []
+contas_correntes = []
 
+def criar_usuario (nome = None, data_nascimento = None, cpf = None, logradouro = None, numero = None, bairro = None, cidade = None, estado = None):
+    return {"nome": nome, 
+        "data_nascimento": data_nascimento,
+        "cpf" : cpf,
+        "endereco": {
+            "logradouro": logradouro,
+            "numero": numero,
+            "bairro": bairro,
+            "cidade/sigla": cidade,
+            "estado" : estado
+        }
+    }
 
+def criar_usuário_inputs () :
+    return criar_usuario(
+            nome = input("Qual é o seu nome?").strip(),
+            data_nascimento = input("Qual a sua data de nascimento? (dd-mm-aaaa)").strip(),
+            cpf = input("Qual o seu CPF? (apenas números)").strip(),
+            logradouro = input("Qual o seu logradouro?").strip(),
+            numero = input("Qual o número da sua residência?").strip(),
+            bairro = input("Qual o seu bairro?").strip(),
+            cidade = input("Qual a sua cidade?").strip(),
+            estado = input("Qual o seu estado? (sigla)").strip()
+        )
 
-def Sacar (valor):
-    global dinheiro_depositado, limite_usuario
-    if limite_usuario < LIMITE_DIARIO:
-        if valor <= 500:
-            if valor <= dinheiro_depositado:
-                dinheiro_depositado -= valor
-                limite_usuario += 1
-                historico_movimentacoes.append(f"Saque do usuário: R$ {valor:.2f} - Atual valor depositado: R$ {dinheiro_depositado:.2f}")
-                print(f"Sucesso em sacar R$ {valor:.2f}")
+def criar_conta_corrente(numero_de_conta = None, usuario = None):
+    return {
+        "agencia" : "0001",
+        "numero_da_conta" : numero_de_conta,
+        "usuário": usuario
+    }
+
+def sacar(*, saldo, valor, extrato, limite, numero_saques):
+    if valor <= 0:
+        print("Operação falhou! O valor informado é inválido.")
+        return saldo, extrato, numero_saques
+
+    if numero_saques < limite:
+        if valor <= LIMITE_VALOR_SAQUE:
+            if valor <= saldo:
+                saldo -= valor
+                numero_saques += 1
+                extrato.append(f"Saque do usuário: R$ {valor:.2f} - Atual valor depositado: R$ {saldo:.2f}")
+                print(f"Sucesso em sacar o valor de R${valor:.2f} - Saldo restante: R$ {saldo:.2f}")
             else:
                 print("Saldo insuficiente!")
         else:
-            print("Este valor é maior que R$ 500,00!")
+            print(f"Este valor é maior que R$ {LIMITE_VALOR_SAQUE:.2f}")
     else:
         print("Usuário já atingiu o limite diário! Por favor volte mais tarde!")
+    return saldo, extrato, numero_saques
 
-def depositar (valor):
-    global dinheiro_depositado
-    dinheiro_depositado += valor
-    historico_movimentacoes.append(f"Deposito do usuário: R$ {valor:.2f} - Atual valor depositado: R$ {dinheiro_depositado:.2f}")
-    print(f"Sucesso, valor depositado de R${valor:.2f}")
+def depositar (saldo, valor, extrato):
+    if valor > 0:
+        saldo += valor
+        extrato.append(f"Deposito do usuário: R$ {valor:.2f} - Atual valor depositado: R$ {saldo:.2f}")
+        print(f"Sucesso ao depositar R$ {valor:.2f} em sua conta - Saldo : R$ {saldo:.2f}")
+    else:
+        print("Operação falhou! O valor informado é inválido.")
+    return saldo, extrato
 
-def consultar_saldo():
-    print(f"O valor do usuário é de R$ {dinheiro_depositado:.2f}")
-
-def exibir_extrato () :
+def exibir_extrato (saldo, /, extrato) :
     texto = "Historico de movimentação do usuário \n"
-    if not historico_movimentacoes:
+    if not extrato:
         texto += "Não foram realizadas movimentações."
     else:
-        for transacao in historico_movimentacoes:
+        for transacao in extrato:
             texto += transacao + "\n"
     print(texto)
+    print(f"\nSaldo atual:\t\tR$ {saldo:.2f}")
 
 
 while True:
@@ -52,9 +91,11 @@ while True:
 
             2 - Sacar
 
-            3 - Consultar Saldo
+            3 - Exibir extrato
 
-            4 - Exibir extrato
+            4 - Criar Usuário
+
+            5 - Criar Conta Corrente
 
             0 - Sair
         _______________________________________
@@ -66,23 +107,53 @@ while True:
     if opcao == "1":
         try:
             valor = float(input("Informe o valor do depósito: "))
-            depositar(valor)
+            dinheiro_depositado, historico_movimentacoes = depositar(dinheiro_depositado, valor, historico_movimentacoes)
         except ValueError:
             print("Valor inválido! Por favor, digite apenas números (use ponto para centavos).")
 
     elif opcao == "2":
         try:
             valor = float(input("Informe o valor do saque: "))
-            Sacar(valor)
+            dinheiro_depositado, historico_movimentacoes, numero_saques_diarios = sacar(saldo=dinheiro_depositado, valor=valor, extrato=historico_movimentacoes, limite=LIMITE_DIARIO, numero_saques=numero_saques_diarios)
+            print (f"O atual valor da conta depositada é: R${dinheiro_depositado:.2f}")
         except ValueError:
             print("Valor inválido! Por favor, digite apenas números (use ponto para centavos).")
 
     elif opcao == "3":
-        consultar_saldo()
+        exibir_extrato(dinheiro_depositado, extrato= historico_movimentacoes)
+        input("\nPressione Enter para voltar ao menu...")
 
     elif opcao == "4":
-        exibir_extrato()
-        input("\nPressione Enter para voltar ao menu...")
+        novo_usuario = criar_usuário_inputs()
+        usuario_existente = [usuario for usuario in lista_usuarios if usuario["cpf"] == novo_usuario["cpf"]]
+        if usuario_existente:
+            print("\nErro: Já existe um usuário com esse CPF!")
+        else:
+            lista_usuarios.append(novo_usuario)
+            print("Usuário criado com sucesso!")
+
+    elif opcao == "5":
+        resposta = input("Já possui uma conta? (S/N)")
+        if resposta.upper() == "S":
+            cpf_usuario = input("Informe o CPF do usuário: ")
+            usuario_encontrado = False
+            for usuario in lista_usuarios:
+                if usuario["cpf"] == cpf_usuario:
+                    contas_correntes.append(criar_conta_corrente(numero_de_conta=len(contas_correntes) + 1, usuario=usuario))
+                    usuario_encontrado = True
+                    print("Conta corrente criada com sucesso!")
+                    break
+            if not usuario_encontrado:
+                print("Usuário não encontrado com o CPF informado.")
+        else:
+            novo_usuario = criar_usuário_inputs()
+            usuario_existente = [usuario for usuario in lista_usuarios if usuario["cpf"] == novo_usuario["cpf"]]
+            if usuario_existente:
+                print("\nErro: Já existe um usuário com esse CPF!")
+            else:
+                lista_usuarios.append(novo_usuario)
+                contas_correntes.append(criar_conta_corrente(numero_de_conta = len(contas_correntes) + 1, usuario = novo_usuario))
+                print("Conta corrente criada com sucesso!")
 
     elif opcao == "0":
         print("Obrigado por utilizar nosso sistema!")
